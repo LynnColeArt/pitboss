@@ -52,6 +52,7 @@ This spike was created on Linux with Swift 6.3.1. On Linux, `pitboss doctor` sho
 - `Tests`: unit tests for core contracts and compatibility parsing.
 - `Fixtures`: small workflow and manifest examples.
 - `ADR`: architecture decision records.
+- `docs/PARTS_ATLAS.md`: feasibility map of subsystem sources, papers, reusable methods, and sideways implementation paths.
 
 ## First Real Inference Milestone
 
