@@ -182,11 +182,10 @@ After that works, attempt full SD1.5 or SDXL text-to-image.
 
 ## 20. Next Tickets
 
-1. Add JSON output mode for `pitboss validate`.
+1. Add a manifest validator with diagnostic codes.
 2. Add a native safetensors header reader.
 3. Add CLIP BPE tokenizer parity fixtures.
 4. Add real Apple Silicon Core ML probe.
-5. Add a manifest validator with diagnostic codes.
-6. Add provenance serialization for validation runs.
-7. Add Comfy visual workflow fixture coverage.
-8. On Mac, run a Core ML VAE decode proof.
+5. Add provenance serialization for validation runs.
+6. Add Comfy visual workflow fixture coverage.
+7. On Mac, run a Core ML VAE decode proof.

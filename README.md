@@ -14,6 +14,7 @@ Implemented now:
 - `pitboss doctor`.
 - `pitboss inspect plugins`.
 - `pitboss validate <workflow.json>`.
+- `pitboss validate --json <workflow.json>`.
 - `pitboss policy-check`.
 - Minimal Comfy API/workflow JSON parser.
 - Internal graph IR.
@@ -29,9 +30,12 @@ swift test
 swift run pitboss doctor
 swift run pitboss inspect plugins
 swift run pitboss validate Fixtures/comfy/basic-api-workflow.json
+swift run pitboss validate --json Fixtures/comfy/basic-api-workflow.json
 swift run pitboss validate Fixtures/comfy/unsupported-api-workflow.json
 swift run pitboss policy-check
 ```
+
+`validate --json` emits schema version `pitboss.validation.v1` with graph counts, node summaries, required capabilities, executable status, and diagnostics.
 
 ## Zero-Python Policy
 

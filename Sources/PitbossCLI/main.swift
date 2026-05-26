@@ -38,7 +38,8 @@ struct PitbossCLI {
         Commands:
           doctor                 Print host, backend, plugin, and zero-Python policy status.
           inspect plugins        List registered plugin contracts and capabilities.
-          validate <workflow>    Validate a Comfy workflow or API prompt JSON file.
+          validate [--json] <workflow>
+                                 Validate a Comfy workflow or API prompt JSON file.
           policy-check           Scan runtime/build/test sources for zero-Python policy violations.
         """)
     }
@@ -97,46 +98,91 @@ struct PitbossCLI {
     }
 
     private static func validate(_ arguments: [String]) {
-        guard let path = arguments.first else {
-            eprint("Usage: pitboss validate <workflow.json>")
+        let options = parseValidateOptions(arguments)
+        guard let path = options.path else {
+            eprint("Usage: pitboss validate [--json] <workflow.json>")
             Foundation.exit(64)
         }
 
         do {
-            let data = try Data(contentsOf: URL(fileURLWithPath: path))
-            var report = ComfyWorkflowParser().parse(data: data)
-            if let graph = report.graph {
-                let registry = PluginRegistry()
-                report.diagnostics.append(contentsOf: registry.diagnostics(for: graph.requiredCapabilities))
-                print("Workflow: \(path)")
-                print("Format: \(graph.workflowProvenance.sourceFormat)")
-                print("Nodes: \(graph.nodes.count)")
-                print("Edges: \(graph.edges.count)")
-                print("Required capabilities:")
-                for capability in graph.requiredCapabilities {
-                    print("  - \(capability.description)")
-                }
+            let report = try validationReport(path: path)
+            if options.json {
+                printJSON(ValidationSummary(workflowPath: path, report: report))
+            } else {
+                printHumanValidation(path: path, report: report)
             }
-
-            if report.diagnostics.isEmpty {
-                print("Diagnostics: none")
-                print("Executable in prototype: no; validation-only runtime spine")
-                return
-            }
-
-            print("Diagnostics:")
-            for diagnostic in report.diagnostics {
-                print("  - \(diagnostic)")
-            }
-            print("Executable in prototype: no")
-
             if report.hasErrors {
                 Foundation.exit(1)
             }
         } catch {
-            eprint("Could not read \(path): \(error.localizedDescription)")
+            let diagnostic = Diagnostic(
+                severity: .error,
+                code: "PITBOSS_WORKFLOW_READ_FAILED",
+                message: "Could not read \(path): \(error.localizedDescription)",
+                suggestedFix: "Check that the workflow path exists and is readable."
+            )
+            let report = ValidationReport(graph: nil, diagnostics: [diagnostic])
+            if options.json {
+                printJSON(ValidationSummary(workflowPath: path, report: report))
+            } else {
+                eprint(diagnostic.message)
+            }
             Foundation.exit(66)
         }
+    }
+
+    private struct ValidateOptions {
+        var path: String?
+        var json: Bool
+    }
+
+    private static func parseValidateOptions(_ arguments: [String]) -> ValidateOptions {
+        var options = ValidateOptions(path: nil, json: false)
+        for argument in arguments {
+            if argument == "--json" {
+                options.json = true
+            } else if options.path == nil {
+                options.path = argument
+            } else {
+                eprint("Ignoring extra validate argument: \(argument)")
+            }
+        }
+        return options
+    }
+
+    private static func validationReport(path: String) throws -> ValidationReport {
+        let data = try Data(contentsOf: URL(fileURLWithPath: path))
+        var report = ComfyWorkflowParser().parse(data: data)
+        if let graph = report.graph {
+            let registry = PluginRegistry()
+            report.diagnostics.append(contentsOf: registry.diagnostics(for: graph.requiredCapabilities))
+        }
+        return report
+    }
+
+    private static func printHumanValidation(path: String, report: ValidationReport) {
+        if let graph = report.graph {
+            print("Workflow: \(path)")
+            print("Format: \(graph.workflowProvenance.sourceFormat)")
+            print("Nodes: \(graph.nodes.count)")
+            print("Edges: \(graph.edges.count)")
+            print("Required capabilities:")
+            for capability in graph.requiredCapabilities {
+                print("  - \(capability.description)")
+            }
+        }
+
+        if report.diagnostics.isEmpty {
+            print("Diagnostics: none")
+            print("Executable in prototype: no; validation-only runtime spine")
+            return
+        }
+
+        print("Diagnostics:")
+        for diagnostic in report.diagnostics {
+            print("  - \(diagnostic)")
+        }
+        print("Executable in prototype: no")
     }
 
     private static func policyCheck() {
@@ -150,6 +196,20 @@ struct PitbossCLI {
             print("- \(finding)")
         }
         Foundation.exit(1)
+    }
+
+    private static func printJSON<T: Encodable>(_ value: T) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        do {
+            let data = try encoder.encode(value)
+            if let string = String(data: data, encoding: .utf8) {
+                print(string)
+            }
+        } catch {
+            eprint("Could not encode JSON: \(error.localizedDescription)")
+            Foundation.exit(70)
+        }
     }
 
     private static func eprint(_ message: String) {

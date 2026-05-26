@@ -37,6 +37,41 @@ final class CoreTypesTests: XCTestCase {
         XCTAssertTrue(findings.isEmpty, "Expected no runtime policy findings, got \(findings)")
     }
 
+    func testValidationSummaryIsAgentReadable() throws {
+        let graph = Graph(
+            nodes: [
+                GraphNode(
+                    id: "1",
+                    type: "conditioning.clip.text",
+                    displayName: "CLIPTextEncode",
+                    requiredCapabilities: [.parse("model.family.sdxl")],
+                    pluginProvider: "pitboss.model.sdxl.stub",
+                    source: SourceNodeMetadata(format: "comfy.api", nodeID: "1", nodeType: "CLIPTextEncode")
+                )
+            ],
+            edges: [],
+            requiredCapabilities: [.parse("model.family.sdxl")],
+            workflowProvenance: WorkflowProvenance(sourceFormat: "comfy.api", sourceVersion: nil)
+        )
+        let report = ValidationReport(
+            graph: graph,
+            diagnostics: [
+                Diagnostic(severity: .warning, code: "PITBOSS_TEST_WARNING", message: "Fixture warning.")
+            ]
+        )
+
+        let summary = ValidationSummary(workflowPath: "Fixtures/comfy/basic-api-workflow.json", report: report)
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(ValidationSummary.self, from: data)
+
+        XCTAssertEqual(decoded.schemaVersion, "pitboss.validation.v1")
+        XCTAssertEqual(decoded.sourceFormat, "comfy.api")
+        XCTAssertEqual(decoded.graph?.nodeCount, 1)
+        XCTAssertEqual(decoded.graph?.nodes.first?.sourceNodeType, "CLIPTextEncode")
+        XCTAssertEqual(decoded.graph?.requiredCapabilities, ["model.family.sdxl"])
+        XCTAssertFalse(decoded.hasErrors)
+    }
+
     private func fixtureURL(_ relativePath: String) throws -> URL {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         return root.appendingPathComponent(relativePath)
