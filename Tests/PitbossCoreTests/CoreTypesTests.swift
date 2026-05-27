@@ -29,6 +29,53 @@ final class CoreTypesTests: XCTestCase {
         XCTAssertEqual(manifest.backendArtifacts.first?.kind, .coreml)
     }
 
+    func testValidModelManifestHasNoValidationDiagnostics() throws {
+        let manifest = try decodeManifest("Fixtures/manifests/sdxl-coreml-example.json")
+        let report = PitbossModelManifestValidator().validate(manifest)
+
+        XCTAssertFalse(report.hasErrors)
+        XCTAssertTrue(report.diagnostics.isEmpty, "Expected no diagnostics, got \(report.diagnostics)")
+    }
+
+    func testManifestValidatorCatchesUnknownBackendArtifactModule() throws {
+        let manifest = try decodeManifest("Fixtures/manifests/invalid-artifact-unknown-module.json")
+        let report = PitbossModelManifestValidator().validate(manifest)
+
+        XCTAssertTrue(report.hasErrors)
+        XCTAssertTrue(report.diagnostics.map(\.code).contains("PITBOSS_MANIFEST_BACKEND_ARTIFACT_UNKNOWN_MODULE"))
+    }
+
+    func testManifestValidatorCatchesIncompleteClipBPETokenizer() throws {
+        let manifest = try decodeManifest("Fixtures/manifests/invalid-tokenizer-clip-bpe.json")
+        let codes = PitbossModelManifestValidator().validate(manifest).diagnostics.map(\.code)
+
+        XCTAssertTrue(codes.contains("PITBOSS_MANIFEST_TOKENIZER_USAGE_EMPTY"))
+        XCTAssertTrue(codes.contains("PITBOSS_MANIFEST_CLIP_BPE_VOCAB_MISSING"))
+        XCTAssertTrue(codes.contains("PITBOSS_MANIFEST_CLIP_BPE_MERGES_MISSING"))
+    }
+
+    func testManifestValidatorCatchesUnknownCapability() throws {
+        let manifest = try decodeManifest("Fixtures/manifests/invalid-unknown-capability.json")
+        let report = PitbossModelManifestValidator().validate(manifest)
+
+        XCTAssertTrue(report.hasErrors)
+        XCTAssertTrue(report.diagnostics.map(\.code).contains("PITBOSS_MANIFEST_UNKNOWN_CAPABILITY"))
+    }
+
+    func testManifestValidationSummaryIsAgentReadable() throws {
+        let manifest = try decodeManifest("Fixtures/manifests/invalid-unknown-capability.json")
+        let report = PitbossModelManifestValidator().validate(manifest)
+        let summary = ManifestValidationSummary(manifestPath: "Fixtures/manifests/invalid-unknown-capability.json", report: report)
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(ManifestValidationSummary.self, from: data)
+
+        XCTAssertEqual(decoded.schemaVersion, "pitboss.manifest-validation.v1")
+        XCTAssertEqual(decoded.bundleId, "org.pitboss.invalid.unknown-capability")
+        XCTAssertEqual(decoded.modelFamily, "sdxl")
+        XCTAssertEqual(decoded.moduleCount, 1)
+        XCTAssertTrue(decoded.hasErrors)
+    }
+
     func testPolicyScannerIgnoresDocumentationButChecksRuntimeSource() throws {
         let scanner = ZeroPythonPolicyScanner()
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
@@ -75,5 +122,10 @@ final class CoreTypesTests: XCTestCase {
     private func fixtureURL(_ relativePath: String) throws -> URL {
         let root = URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
         return root.appendingPathComponent(relativePath)
+    }
+
+    private func decodeManifest(_ relativePath: String) throws -> PitbossModelManifest {
+        let data = try Data(contentsOf: try fixtureURL(relativePath))
+        return try JSONDecoder().decode(PitbossModelManifest.self, from: data)
     }
 }

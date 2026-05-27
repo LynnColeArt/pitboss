@@ -15,6 +15,8 @@ Implemented now:
 - `pitboss inspect plugins`.
 - `pitboss validate <workflow.json>`.
 - `pitboss validate --json <workflow.json>`.
+- `pitboss validate-manifest <manifest.json>`.
+- `pitboss validate-manifest --json <manifest.json>`.
 - `pitboss policy-check`.
 - Minimal Comfy API/workflow JSON parser.
 - Internal graph IR.
@@ -32,10 +34,14 @@ swift run pitboss inspect plugins
 swift run pitboss validate Fixtures/comfy/basic-api-workflow.json
 swift run pitboss validate --json Fixtures/comfy/basic-api-workflow.json
 swift run pitboss validate Fixtures/comfy/unsupported-api-workflow.json
+swift run pitboss validate-manifest Fixtures/manifests/sdxl-coreml-example.json
+swift run pitboss validate-manifest --json Fixtures/manifests/invalid-tokenizer-clip-bpe.json
 swift run pitboss policy-check
 ```
 
 `validate --json` emits schema version `pitboss.validation.v1` with graph counts, node summaries, required capabilities, executable status, and diagnostics.
+
+`validate-manifest --json` emits schema version `pitboss.manifest-validation.v1` with bundle metadata, model counts, validation status, and diagnostics.
 
 ## Zero-Python Policy
 

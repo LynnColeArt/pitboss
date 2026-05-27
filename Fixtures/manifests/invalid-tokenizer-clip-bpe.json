@@ -1,0 +1,68 @@
+{
+  "manifestVersion": "0.1.0",
+  "bundleId": "org.pitboss.invalid.tokenizer",
+  "displayName": "Invalid Tokenizer Manifest",
+  "modelFamily": "sdxl",
+  "pipelineTypes": ["text-to-image"],
+  "assets": [
+    {
+      "id": "unet",
+      "type": "denoiser",
+      "path": "Models/ExampleSDXL/Unet.mlpackage",
+      "format": "mlpackage",
+      "sha256": null
+    }
+  ],
+  "modules": [
+    {
+      "id": "unet",
+      "role": "denoiser",
+      "requiredCapabilities": [
+        {
+          "namespace": "backend",
+          "name": "coreml",
+          "versionRequirement": null,
+          "metadata": {}
+        }
+      ]
+    }
+  ],
+  "tokenizerRequirements": [
+    {
+      "id": "clip-g",
+      "kind": "clip-bpe",
+      "vocabularyPath": null,
+      "mergesPath": null,
+      "requiredFor": []
+    }
+  ],
+  "schedulerDefaults": {
+    "scheduler": "euler",
+    "steps": 20,
+    "guidanceScale": 7.5
+  },
+  "adapterSupport": {
+    "supportsLoRA": false,
+    "composition": null,
+    "maxAdapters": null
+  },
+  "controlSupport": {
+    "supportsControlNet": false,
+    "supportedControlTypes": []
+  },
+  "backendArtifacts": [
+    {
+      "kind": "coreml",
+      "moduleId": "unet",
+      "path": "Models/ExampleSDXL/Unet.mlpackage",
+      "precision": "float16"
+    }
+  ],
+  "minimumRuntimeVersion": "0.1.0",
+  "provenance": {
+    "source": "fixture",
+    "license": "example-only",
+    "conversionTool": null,
+    "notes": "Invalid fixture: CLIP BPE tokenizer is incomplete."
+  }
+}

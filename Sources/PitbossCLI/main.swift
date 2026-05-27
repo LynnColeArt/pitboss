@@ -20,6 +20,8 @@ struct PitbossCLI {
             inspect(arguments)
         case "validate":
             validate(arguments)
+        case "validate-manifest":
+            validateManifest(arguments)
         case "policy-check":
             policyCheck()
         case "help", "--help", "-h":
@@ -40,6 +42,8 @@ struct PitbossCLI {
           inspect plugins        List registered plugin contracts and capabilities.
           validate [--json] <workflow>
                                  Validate a Comfy workflow or API prompt JSON file.
+          validate-manifest [--json] <manifest>
+                                 Validate a Pitboss model bundle manifest.
           policy-check           Scan runtime/build/test sources for zero-Python policy violations.
         """)
     }
@@ -98,7 +102,7 @@ struct PitbossCLI {
     }
 
     private static func validate(_ arguments: [String]) {
-        let options = parseValidateOptions(arguments)
+        let options = parsePathOptions(arguments)
         guard let path = options.path else {
             eprint("Usage: pitboss validate [--json] <workflow.json>")
             Foundation.exit(64)
@@ -131,13 +135,77 @@ struct PitbossCLI {
         }
     }
 
-    private struct ValidateOptions {
+    private static func validateManifest(_ arguments: [String]) {
+        let options = parsePathOptions(arguments)
+        guard let path = options.path else {
+            eprint("Usage: pitboss validate-manifest [--json] <manifest.json>")
+            Foundation.exit(64)
+        }
+
+        let report: ManifestValidationReport
+        do {
+            report = try manifestValidationReport(path: path)
+        } catch ManifestReadError.readFailed(let message) {
+            let diagnostic = Diagnostic(
+                severity: .error,
+                code: "PITBOSS_MANIFEST_READ_FAILED",
+                message: message,
+                suggestedFix: "Check that the manifest path exists and is readable."
+            )
+            let failedReport = ManifestValidationReport(manifest: nil, diagnostics: [diagnostic])
+            if options.json {
+                printJSON(ManifestValidationSummary(manifestPath: path, report: failedReport))
+            } else {
+                eprint(diagnostic.message)
+            }
+            Foundation.exit(66)
+        } catch ManifestReadError.decodeFailed(let message) {
+            let diagnostic = Diagnostic(
+                severity: .error,
+                code: "PITBOSS_MANIFEST_DECODE_FAILED",
+                message: message,
+                suggestedFix: "Check the manifest JSON shape and enum values."
+            )
+            let failedReport = ManifestValidationReport(manifest: nil, diagnostics: [diagnostic])
+            if options.json {
+                printJSON(ManifestValidationSummary(manifestPath: path, report: failedReport))
+            } else {
+                eprint(diagnostic.message)
+            }
+            Foundation.exit(65)
+        } catch {
+            let diagnostic = Diagnostic(
+                severity: .error,
+                code: "PITBOSS_MANIFEST_VALIDATION_FAILED",
+                message: "Could not validate \(path): \(error.localizedDescription)",
+                suggestedFix: "Retry with --json for structured diagnostics."
+            )
+            let failedReport = ManifestValidationReport(manifest: nil, diagnostics: [diagnostic])
+            if options.json {
+                printJSON(ManifestValidationSummary(manifestPath: path, report: failedReport))
+            } else {
+                eprint(diagnostic.message)
+            }
+            Foundation.exit(1)
+        }
+
+        if options.json {
+            printJSON(ManifestValidationSummary(manifestPath: path, report: report))
+        } else {
+            printHumanManifestValidation(path: path, report: report)
+        }
+        if report.hasErrors {
+            Foundation.exit(1)
+        }
+    }
+
+    private struct PathOptions {
         var path: String?
         var json: Bool
     }
 
-    private static func parseValidateOptions(_ arguments: [String]) -> ValidateOptions {
-        var options = ValidateOptions(path: nil, json: false)
+    private static func parsePathOptions(_ arguments: [String]) -> PathOptions {
+        var options = PathOptions(path: nil, json: false)
         for argument in arguments {
             if argument == "--json" {
                 options.json = true
@@ -150,6 +218,11 @@ struct PitbossCLI {
         return options
     }
 
+    private enum ManifestReadError: Error {
+        case readFailed(String)
+        case decodeFailed(String)
+    }
+
     private static func validationReport(path: String) throws -> ValidationReport {
         let data = try Data(contentsOf: URL(fileURLWithPath: path))
         var report = ComfyWorkflowParser().parse(data: data)
@@ -158,6 +231,22 @@ struct PitbossCLI {
             report.diagnostics.append(contentsOf: registry.diagnostics(for: graph.requiredCapabilities))
         }
         return report
+    }
+
+    private static func manifestValidationReport(path: String) throws -> ManifestValidationReport {
+        let data: Data
+        do {
+            data = try Data(contentsOf: URL(fileURLWithPath: path))
+        } catch {
+            throw ManifestReadError.readFailed("Could not read \(path): \(error.localizedDescription)")
+        }
+
+        do {
+            let manifest = try JSONDecoder().decode(PitbossModelManifest.self, from: data)
+            return PitbossModelManifestValidator().validate(manifest)
+        } catch {
+            throw ManifestReadError.decodeFailed("Could not decode \(path): \(error.localizedDescription)")
+        }
     }
 
     private static func printHumanValidation(path: String, report: ValidationReport) {
@@ -183,6 +272,32 @@ struct PitbossCLI {
             print("  - \(diagnostic)")
         }
         print("Executable in prototype: no")
+    }
+
+    private static func printHumanManifestValidation(path: String, report: ManifestValidationReport) {
+        if let manifest = report.manifest {
+            print("Manifest: \(path)")
+            print("Bundle: \(manifest.bundleId)")
+            print("Model family: \(manifest.modelFamily.rawValue)")
+            print("Pipelines:")
+            for pipeline in manifest.pipelineTypes {
+                print("  - \(pipeline.rawValue)")
+            }
+            print("Assets: \(manifest.assets.count)")
+            print("Modules: \(manifest.modules.count)")
+            print("Tokenizers: \(manifest.tokenizerRequirements.count)")
+            print("Backend artifacts: \(manifest.backendArtifacts.count)")
+        }
+
+        if report.diagnostics.isEmpty {
+            print("Diagnostics: none")
+            return
+        }
+
+        print("Diagnostics:")
+        for diagnostic in report.diagnostics {
+            print("  - \(diagnostic)")
+        }
     }
 
     private static func policyCheck() {

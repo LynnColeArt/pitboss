@@ -130,7 +130,7 @@ That is already product value, even before generation works.
 4. Create safetensors header-reader design notes and fixture cases.
 5. Map LoRA tensor naming across SD1.5 and SDXL.
 6. Map ControlNet and T2I/IP adapter graph shapes into Pitboss capabilities.
-7. Add manifest validation diagnostics for missing modules, bad artifact declarations, and unsupported backend requirements.
+7. Add a native safetensors header reader with metadata-only inspection.
 
 ## Source Links
 
